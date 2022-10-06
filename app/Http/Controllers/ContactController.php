@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Http\Requests\StoreContactRequest;
 use App\Http\Requests\StoreFileRequest;
 use App\Models\Contact;
-use App\Models\User;
+use Exception;
 
 class ContactController extends Controller
 {
@@ -27,13 +29,6 @@ class ContactController extends Controller
         return view('contacts', ['contacts' => $contacts, 'search' => $search]);
     }
 
-
-    public function create()
-    {
-        //
-    }
-
-    
     public function store(StoreFileRequest $request)
     {
         $contact_csv = $request->file('contact_csv');
@@ -45,18 +40,31 @@ class ContactController extends Controller
 
         foreach($contact_data as $key => $contacts) {
             foreach($contacts as $cKey => $contact) {
-                $contactsArray[$key][$header_array[$cKey]] = $contact;
+
+                if($contact == "") {
+                    $contactsArray[$key][$header_array[$cKey]] = null;
+                } else {
+                    $contactsArray[$key][$header_array[$cKey]] = $contact;
+                }
             }
         }
 
-        foreach($contactsArray as $contact) {
-            $data = Contact::create([
-                'title' => $contact[$request->title],
-                'f_name' => $contact[$request->f_name],
-                'l_name' => $contact[$request->l_name],
-                'mobile_num' => $contact[$request->mobile_num],
-                'comp_name' => $contact[$request->comp_name],
-            ]);
+        DB::beginTransaction();
+        try {
+            foreach($contactsArray as $contact) {
+                $data = Contact::create([
+                    'title' => $contact[$request->title],
+                    'f_name' => $contact[$request->f_name],
+                    'l_name' => $contact[$request->l_name],
+                    'mobile_num' => $contact[$request->mobile_num],
+                    'comp_name' => $contact[$request->comp_name],
+                ]);
+            }
+            DB::commit();
+
+        }catch(Exception $e) {
+            DB::rollBack();
+            Log::error("Uploading CSV File Failed", ['message' => $e->getMessage()]);
         }
 
         return redirect('contacts');
